@@ -316,6 +316,8 @@ impl<T: Storage> Raft<T> {
                 learners.len(),
                 c.max_inflight_msgs,
                 logger.clone(),
+                c.flexible,
+                c.replication_quorum_size,
             ),
             msgs: Default::default(),
             r: RaftCore {

@@ -204,12 +204,14 @@ pub struct ProgressTracker {
 
     group_commit: bool,
     pub(crate) logger: Logger,
+    flexible: bool,
+    replication_quorum_size:usize
 }
 
 impl ProgressTracker {
     /// Creates a new ProgressTracker.
-    pub fn new(max_inflight: usize, logger: Logger) -> Self {
-        Self::with_capacity(0, 0, max_inflight, logger)
+    pub fn new(max_inflight: usize, logger: Logger,flexible: bool,replication_quorum_size: usize) -> Self {
+        Self::with_capacity(0, 0, max_inflight, logger, flexible, replication_quorum_size)
     }
 
     /// Create a progress set with the specified sizes already reserved.
@@ -218,6 +220,8 @@ impl ProgressTracker {
         learners: usize,
         max_inflight: usize,
         logger: Logger,
+        flexible: bool,
+        replication_quorum_size: usize,
     ) -> Self {
         ProgressTracker {
             progress: HashMap::with_capacity_and_hasher(
@@ -229,6 +233,8 @@ impl ProgressTracker {
             max_inflight,
             group_commit: false,
             logger,
+            flexible,
+            replication_quorum_size,
         }
     }
 
@@ -292,7 +298,7 @@ impl ProgressTracker {
     pub fn maximal_committed_index(&mut self) -> (u64, bool) {
         self.conf
             .voters
-            .committed_index(self.group_commit, &self.progress)
+            .committed_index(self.flexible, self.replication_quorum_size,self.group_commit, &self.progress)
     }
 
     /// Prepares for a new round of vote counting via recordVote.
@@ -334,7 +340,7 @@ impl ProgressTracker {
     /// Eventually, the election will result in this returning either `Elected`
     /// or `Ineligible`, meaning the election can be concluded.
     pub fn vote_result(&self, votes: &HashMap<u64, bool>) -> VoteResult {
-        self.conf.voters.vote_result(|id| votes.get(&id).cloned())
+        self.conf.voters.vote_result(self.flexible, self.replication_quorum_size,|id| votes.get(&id).cloned())
     }
 
     /// Determines if the current quorum is active according to the this raft node.
@@ -365,7 +371,7 @@ impl ProgressTracker {
     pub fn has_quorum(&self, potential_quorum: &HashSet<u64>) -> bool {
         self.conf
             .voters
-            .vote_result(|id| potential_quorum.get(&id).map(|_| true))
+            .vote_result(self.flexible, self.replication_quorum_size,|id| potential_quorum.get(&id).map(|_| true))
             == VoteResult::Won
     }
 

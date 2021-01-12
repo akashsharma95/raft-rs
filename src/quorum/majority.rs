@@ -67,7 +67,7 @@ impl Configuration {
     ///
     /// Eg. If the matched indexes are [2,2,2,4,5], it will return 2.
     /// If the matched indexes and groups are `[(1, 1), (2, 2), (3, 2)]`, it will return 1.
-    pub fn committed_index(&self, use_group_commit: bool, l: &impl AckedIndexer) -> (u64, bool) {
+    pub fn committed_index(&self,flexible: bool, replication_quorum_size: usize, use_group_commit: bool, l: &impl AckedIndexer) -> (u64, bool) {
         if self.voters.is_empty() {
             // This plays well with joint quorums which, when one half is the zero
             // MajorityConfig, should behave like the other half.
@@ -93,8 +93,18 @@ impl Configuration {
         };
         // Reverse sort.
         matched.sort_by(|a, b| b.index.cmp(&a.index));
-
-        let quorum = crate::majority(matched.len());
+        let quorum ;
+        // During initial bootstrap. we may have 1 node in cluster. Config change has to go over raft 
+        // to get up. so intial voter will be less than replication_quorum_size.
+        if flexible && self.voters.len() < replication_quorum_size{
+            quorum = self.voters.len();
+        } else if flexible {
+            quorum = replication_quorum_size;
+        } else {
+            // switch to majority quorum if it's not flexible raft.
+            quorum = crate::majority(matched.len());
+        }
+        
         let quorum_index = matched[quorum - 1];
         if !use_group_commit {
             return (quorum_index.index, false);
@@ -127,7 +137,7 @@ impl Configuration {
     /// a result indicating whether the vote is pending (i.e. neither a quorum of
     /// yes/no has been reached), won (a quorum of yes has been reached), or lost (a
     /// quorum of no has been reached).
-    pub fn vote_result(&self, check: impl Fn(u64) -> Option<bool>) -> VoteResult {
+    pub fn vote_result(&self,flexible:bool, replication_quorum_size: usize, check: impl Fn(u64) -> Option<bool>) -> VoteResult {
         if self.voters.is_empty() {
             // By convention, the elections on an empty config win. This comes in
             // handy with joint quorums because it'll make a half-populated joint
@@ -143,7 +153,14 @@ impl Configuration {
                 _ => (),
             }
         }
-        let q = crate::majority(self.voters.len());
+        let q;
+        if flexible && self.voters.len() < replication_quorum_size{
+            q = self.voters.len()
+        } else if flexible{
+            q = self.voters.len() - replication_quorum_size + 1;
+        } else {
+            q = crate::majority(self.voters.len());
+        }
         if yes >= q {
             VoteResult::Won
         } else if yes + missing >= q {

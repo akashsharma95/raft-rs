@@ -44,18 +44,18 @@ impl Configuration {
     ///
     /// The bool flag indicates whether the index is computed by group commit algorithm
     /// successfully. It's true only when both majorities use group commit.
-    pub fn committed_index(&self, use_group_commit: bool, l: &impl AckedIndexer) -> (u64, bool) {
-        let (i_idx, i_use_gc) = self.incoming.committed_index(use_group_commit, l);
-        let (o_idx, o_use_gc) = self.outgoing.committed_index(use_group_commit, l);
+    pub fn committed_index(&self,flexible: bool, replication_quorum_size: usize, use_group_commit: bool, l: &impl AckedIndexer) -> (u64, bool) {
+        let (i_idx, i_use_gc) = self.incoming.committed_index(flexible, replication_quorum_size,use_group_commit, l);
+        let (o_idx, o_use_gc) = self.outgoing.committed_index(flexible, replication_quorum_size,use_group_commit, l);
         (cmp::min(i_idx, o_idx), i_use_gc && o_use_gc)
     }
 
     /// Takes a mapping of voters to yes/no (true/false) votes and returns a result
     /// indicating whether the vote is pending, lost, or won. A joint quorum requires
     /// both majority quorums to vote in favor.
-    pub fn vote_result(&self, check: impl Fn(u64) -> Option<bool>) -> VoteResult {
-        let i = self.incoming.vote_result(&check);
-        let o = self.outgoing.vote_result(check);
+    pub fn vote_result(&self,flexible: bool, replication_quorum_size: usize, check: impl Fn(u64) -> Option<bool>) -> VoteResult {
+        let i = self.incoming.vote_result(flexible, replication_quorum_size,&check);
+        let o = self.outgoing.vote_result(flexible, replication_quorum_size, check);
         match (i, o) {
             // It won if won in both.
             (VoteResult::Won, VoteResult::Won) => VoteResult::Won,

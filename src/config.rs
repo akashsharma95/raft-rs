@@ -95,6 +95,14 @@ pub struct Config {
     /// Specify maximum of uncommited entry size.
     /// When this limit is reached, all proposals to append new log will be dropped
     pub max_uncommitted_size: u64,
+
+    /// Specify whether raft to use flexiible mode for state machine to replicate
+    pub flexible: bool, 
+
+    /// replication_quorum_size is used to specify the minimum number of node that
+    /// raft will replicate to succeed the quorom. It can't be less than 2. 
+    /// The fault tolerance of the cluster increases as replication_quorum_size.
+    pub replication_quorum_size: usize,
 }
 
 impl Default for Config {
@@ -116,6 +124,8 @@ impl Default for Config {
             batch_append: false,
             priority: 0,
             max_uncommitted_size: NO_LIMIT,
+            flexible: false,
+            replication_quorum_size:2,
         }
     }
 }
@@ -199,6 +209,12 @@ impl Config {
             return Err(Error::ConfigInvalid(
                 "max uncommitted size should greater than max_size_per_msg".to_owned(),
             ));
+        }
+
+        if self.flexible && self.replication_quorum_size < 2{
+            return Err(Error::ConfigInvalid(
+                "replication_quorum_size should be greater than 2".to_owned(),
+            ))
         }
 
         Ok(())
