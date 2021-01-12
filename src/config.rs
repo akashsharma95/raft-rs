@@ -124,7 +124,7 @@ impl Default for Config {
             batch_append: false,
             priority: 0,
             max_uncommitted_size: NO_LIMIT,
-            flexible: false,
+            flexible: true,
             replication_quorum_size:2,
         }
     }
